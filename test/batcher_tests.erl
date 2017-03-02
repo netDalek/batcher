@@ -5,11 +5,11 @@
 
 all_test_() ->
     [
-     {timeout, 50, [{"Integration test",                                  fun highload/0}]},
-     {timeout, 50, [{"Integration test",                                  fun highload2/0}]}
+     fun batch_insert/0,
+     fun batch_increment_with_aggregation/0
     ].
 
-highload() ->
+batch_insert() ->
     InitFun = fun() ->
                       ets:new(?MODULE, [named_table])
               end,
@@ -25,7 +25,7 @@ highload() ->
     unlink(Pid),
     exit(Pid, kill).
 
-highload2() ->
+batch_increment_with_aggregation() ->
     InitFun = fun() ->
                       ets:new(?MODULE, [named_table]),
                       ets:insert(?MODULE, {a, 0}),
