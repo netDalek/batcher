@@ -1,9 +1,9 @@
--module(eredis_batcher).
+-module(batcher).
 -behaviour(gen_server).
 
 -export([
-         start_link/2,
          start_link/3,
+         start_link/4,
          q/2,
          sync/2
         ]).
@@ -11,18 +11,19 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(st, {
+          func,
           queries = [],
           count = 0,
           dropped = 0,
           limit,
-          redis
+          state
          }).
 
-start_link(RedisOpts, Limit) ->
-    gen_server:start_link(?MODULE, [RedisOpts, Limit], []).
+start_link(InitFun, ProcessFun, Limit) ->
+    gen_server:start_link(?MODULE, [InitFun, ProcessFun, Limit], []).
 
-start_link(Name, RedisOpts, Limit) ->
-    gen_server:start_link({local, Name}, ?MODULE, [RedisOpts, Limit], []).
+start_link(Name, InitFun, ProcessFun, Limit) ->
+    gen_server:start_link({local, Name}, ?MODULE, [InitFun, ProcessFun, Limit], []).
 
 q(Pid, Query) ->
     gen_server:cast(Pid, {q, Query}).
@@ -34,9 +35,8 @@ sync(Pid, Timeout) ->
 %% GEN SERVER
 %% ===================================================================
 
-init([RedisOpts, Limit]) ->
-    {ok, Conn} = apply(eredis_sync, connect_db, RedisOpts),
-    St = #st{limit = Limit, redis = Conn},
+init([InitFun, ProcessFun, Limit]) ->
+    St = #st{limit = Limit, state = InitFun(), func = ProcessFun},
     {ok, St}.
 
 terminate(_Reason, _St) -> ok.
@@ -63,8 +63,8 @@ do_sync(From, St, {message_queue_len, _}) ->
     self() ! {'$gen_call', From, sync},
     {noreply, St}.
 
-do_flush(#st{redis = Conn, queries = Queries, dropped = 0} = St) ->
-    case eredis_sync:qp(Conn, Queries) of
+do_flush(#st{state = State, func = Fun, queries = Queries, dropped = 0} = St) ->
+    case Fun(State, Queries) of
         {error, Error} ->
             lager:error("batch failed with error ~p", [Error]),
             self() ! flush,

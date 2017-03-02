@@ -1,11 +1,10 @@
-{application, eredis_batcher,
+{application, batcher,
  [{description, "An OTP library"},
   {vsn, "0.1.0"},
   {registered, []},
   {applications,
    [kernel,
-    stdlib,
-    eredis_sync
+    stdlib
    ]},
   {env,[]},
   {modules, []},
